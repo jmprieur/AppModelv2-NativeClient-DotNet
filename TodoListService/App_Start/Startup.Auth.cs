@@ -19,10 +19,29 @@ namespace TodoListService
         {
             var tvps = new TokenValidationParameters
             {
-                // The web app and the service are sharing the same clientId
-                ValidAudience = clientId,
+                // In this app, the TodoListClient and TodoListService
+                // are represented using the same Application Id - we use
+                // the Application Id to represent the audience, or the
+                // intended recipient of tokens.
+
+                ValidAudience = ConfigurationManager.AppSettings["ida:Audience"],
+
+                // In a real application, you might use issuer validation to
+                // verify that the user's organization (if applicable) has
+                // signed up for the app.  Here, we'll just turn it off.
+
                 ValidateIssuer = false,
             };
+
+            // Set up the OWIN pipeline to use OAuth 2.0 Bearer authentication.
+            // The options provided here tell the middleware about the type of tokens
+            // that will be recieved, which are JWTs for the v2.0 endpoint.
+
+            // NOTE: The usual WindowsAzureActiveDirectoryBearerAuthenticationMiddleware uses a
+            // metadata endpoint which is not supported by the v2.0 endpoint.  Instead, this
+            // OpenIdConnectCachingSecurityTokenProvider can be used to fetch & use the OpenIdConnect
+            // metadata document.
+            // See https://docs.microsoft.com/en-us/azure/active-directory/develop/active-directory-v2-devquickstarts-dotnet-api
 
             app.UseOAuthBearerAuthentication(new OAuthBearerAuthenticationOptions
             {

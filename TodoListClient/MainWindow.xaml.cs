@@ -46,13 +46,13 @@ namespace TodoListClient
     /// </summary>
     public partial class MainWindow : Window
     {
-        
+
         // The Client ID is used by the application to uniquely identify itself to the v2.0 endpoint
         // The AAD Instance is the instance of the v2.0 endpoint
         // The Redirect URI is the URI where the v2.0 endpoint will return OAuth responses.
         // The Authority is the sign-in URL.
-        
-        
+        private static string[] scopes = new string[] { "api://b3682cc7-8b30-4bd2-aaba-080c6bf0fd31/access_as_user" }; 
+
         private static string clientId = ConfigurationManager.AppSettings["ida:ClientId"];
         
         private static string todoListBaseAddress = ConfigurationManager.AppSettings["todo:TodoListBaseAddress"];
@@ -67,7 +67,6 @@ namespace TodoListClient
             // TODO: Initialize the PublicClientApplication
             app = new PublicClientApplication(clientId)
             {
-                UserTokenCache = new FileCache(),
             };
             AuthenticationResult result = null;
 
@@ -76,9 +75,10 @@ namespace TodoListClient
             // You can do so by trying to get a token from MSAL, using the method
             // AcquireTokenSilent.  This forces MSAL to throw an exception if it cannot
             // get a token for the user without showing a UI.
+            if (app.Users.Any())
             try
             {
-                result = await app.AcquireTokenSilentAsync(new string[] { clientId });
+                result = await app.AcquireTokenSilentAsync(scopes, app.Users.FirstOrDefault());
                 // If we got here, a valid token is in the cache - or MSAL was able to get a new oen via refresh token.
                 // Proceed to fetch the user's tasks from the TodoListService via the GetTodoList() method.
                 
@@ -125,7 +125,11 @@ namespace TodoListClient
                 // without invoking any UI prompt.  AcquireTokenSilentAsync forces
                 // MSAL to throw an exception if it cannot get a token silently.
 
-                result = await app.AcquireTokenSilentAsync(new string[] { clientId });
+                result = await app.AcquireTokenSilentAsync(scopes, app.Users.FirstOrDefault());
+                if (result.AccessToken == null)
+                {
+                    result = await app.AcquireTokenAsync(scopes);
+                }
             }
             catch (MsalException ex)
             {
@@ -156,7 +160,7 @@ namespace TodoListClient
             // add it to the http authorization header,
             // before making the call to access the To Do list service.
 
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", result.Token);
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", result.AccessToken);
 
             // Call the To Do list service.
             HttpResponseMessage response = await httpClient.GetAsync(todoListBaseAddress + "/api/todolist");
@@ -189,7 +193,7 @@ namespace TodoListClient
             AuthenticationResult result = null;
             try
             {
-                result = await app.AcquireTokenSilentAsync(new string[] { clientId });
+                result = await app.AcquireTokenSilentAsync(scopes, app.Users.FirstOrDefault());
             }
             catch (MsalException ex)
             {
@@ -212,7 +216,7 @@ namespace TodoListClient
                 return;
             }
 
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", result.Token);
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", result.AccessToken);
 
             HttpContent content = new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("Title", TodoText.Text) });
             HttpResponseMessage response = await httpClient.PostAsync(todoListBaseAddress + "/api/todolist", content);
@@ -240,7 +244,7 @@ namespace TodoListClient
             if (SignInButton.Content.ToString() == "Clear Cache")
             {
                 TodoList.ItemsSource = string.Empty;
-                app.UserTokenCache.Clear(app.ClientId);
+                app.Remove(app.Users.FirstOrDefault());
                 ClearCookies();
                 SignInButton.Content = "Sign In";
                 return;
@@ -254,7 +258,7 @@ namespace TodoListClient
             AuthenticationResult result = null;
             try
             {
-                result = await app.AcquireTokenAsync(new string[] { clientId });
+                result = await app.AcquireTokenAsync(scopes);
                 SignInButton.Content = "Clear Cache";
                 GetTodoList();
             }
